@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Button, FlatList, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Button, FlatList, StyleSheet, TouchableHighlight } from 'react-native';
 import * as SQLite from 'expo-sqlite';
+import NetInfo from '@react-native-community/netinfo';
 
 interface productTypes {
   id: number;
@@ -8,6 +9,7 @@ interface productTypes {
 }[]
 
 const Page = () => {
+  const [isConnected, setIsConnected] = useState(false);
   const [productName, setProductName] = useState('');
   const [products, setProducts] = useState<productTypes>([]);
 
@@ -18,10 +20,10 @@ const Page = () => {
       CREATE TABLE IF NOT EXISTS product (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL);
     
 `);
-    if (!result) {
-      await db.runAsync('DELETE FROM product');
-    }
-    console.log("🚀  result", result);
+    // if (!result) {
+    //   await db.runAsync('DELETE FROM product');
+    // }
+    // console.log("🚀  result", result);
 
   }
 
@@ -29,12 +31,18 @@ const Page = () => {
     const db = await SQLite.openDatabaseAsync('databaseName');
     const result = await db.runAsync('INSERT INTO product (name) VALUES (?)', [productName]);
     setProductName('');
+    getProducts();
+  }
+
+  const remove = async (id: number) => {
+    const db = await SQLite.openDatabaseAsync('databaseName');
+    const result = await db.runAsync('DELETE FROM product WHERE id = ?', [id]);
+    getProducts();
   }
 
   const getProducts = async () => {
     const db = await SQLite.openDatabaseAsync('databaseName');
     const result = await db.getAllAsync('SELECT * FROM product');
-    // console.log("🚀  result", result);
     setProducts(result);
 
   }
@@ -44,8 +52,25 @@ const Page = () => {
     getProducts();
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsConnected(state.isConnected);
+    });
+
+    // Verifica a conexão inicial
+    NetInfo.fetch().then(state => {
+      setIsConnected(state.isConnected);
+    });
+
+    // Limpa o listener ao desmontar
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   return (
     <View style={styles.container}>
+      <Text>{isConnected ? 'Conectado à Internet' : 'Sem Conexão com a Internet'}</Text>
       <TextInput
         style={styles.input}
         placeholder="Nome do produto"
@@ -61,7 +86,12 @@ const Page = () => {
         keyExtractor={item => item.id.toString()}
         renderItem={({ item }) => (
           <View style={styles.item}>
-            <Text>{item.name}</Text>
+            <View>
+              <Text>{item.name}</Text>
+              <TouchableHighlight onPress={() => remove(item.id)} style={{ backgroundColor: 'red', padding: 2 }}>
+                <Text>Remover</Text>
+              </TouchableHighlight>
+            </View>
           </View>
         )}
       />
